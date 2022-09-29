@@ -2,6 +2,8 @@ import math
 import numpy as np
 import kernel as kn
 from matplotlib import pyplot as plt
+from plotter import Plotter
+import time
 
 
 def domain_particle_creation(lx, ly, npx, npy):
@@ -48,32 +50,31 @@ def boundary_particle_creation(lx, ly, npx, npy):
     return boundary_particles
 
 
-def neighbor_list(i, particle_list, influence_radius):
+def neighbor_list(X_i, particle_list, influence_radius):
     neigh_idx = []
     num_particle = particle_list.shape[1]
-    X_i = particle_list[:, i]
     for j in range(0, num_particle):
         X_j = particle_list[:, j]
         d = np.linalg.norm(X_i - X_j)
-        if d < influence_radius:
-            neigh_idx.append(j)
+        if abs(d) > 1e-5:
+            if d < influence_radius:
+                neigh_idx.append(j)
 
-    return particle_list[:, neigh_idx]
+    return neigh_idx
 
 
 def particle_density(i, h, particle_list, m_list, influence_radius):
-    rho_i = 0
+    rho_i = 0.0
     X_i = particle_list[:, i]
-    num_particles = particle_list.shape[1]
-    neighbor_particle = neighbor_list(i, particle_list, influence_radius)
-    num_neighbors = neighbor_particle.shape[0]
+    # num_particles = particle_list.shape[1]
+    neighbor_indices = neighbor_list(X_i, particle_list, influence_radius)
+    num_neighbors = neighbor_indices.shape[0]
 
     for j in range(0, num_neighbors):
-        X_j = neighbor_particle[:, j]
-        # print(kn.cubic_spline_kernel(X_i, X_j, h))
+        neigh_idx = neighbor_indices[j]
+        X_j = particle_list[:, neigh_idx]
         rho_i += m_list[:, j]*kn.cubic_spline_kernel(X_i, X_j, h)
 
-    # print(rho_i)
     return rho_i
 
 
@@ -86,36 +87,25 @@ def discretized_laplacian(K, rho, cv, dx, dy, m_list, rho_list,
     k = 2.0
     h = influence_radius/k
 
-    num_particles = m_list.shape[1]
-    # X_i = particle_list[:, i]
+    neighbor_indices = neighbor_list(X_i, particle_list, influence_radius)
+    num_neighbors = len(neighbor_indices)
 
-    particle = 0
+    particle = 0.0
 
-    for j in range(1, num_particles):
-        # rho_j = particle_density(j, h, particle_list,
-        #                          m_list, influence_radius)
-        X_j = particle_list[:, j]
-        particle += ((m_list[:, j]/rho_list[:, j])
-                     * (T_i - T_field[:, j])
+    for j in range(1, num_neighbors):
+        neigh_idx = neighbor_indices[j]
+        X_j = particle_list[:, neigh_idx]
+        r_ij = np.linalg.norm(X_i - X_j)
+        particle += ((m_list[:, neigh_idx]/rho_list[:, neigh_idx])
+                     * (T_i - T_field[:, neigh_idx])
                      * kn.cubic_spline_kernel_derivative(X_i, X_j, h))
-        # print((m_list[:,j]/rho_list[:,j])*(T_field[:,i] - T_field[:,j])
-        #                * kn.cubic_spline_kernel_derivative(X_i, X_j, h))
 
-    # print(particle)
-    laplace_i = 2*alpha_i*particle
+    laplace_i = 2.0*alpha_i*particle
 
     return laplace_i
 
 
 def initial_conditions(particle_list, T_0y, T_1y, T_x0, T_x1, T_xy):
-    # x = np.linspace(0, lx, npx)
-    # y = np.linspace(0, ly, npy)
-
-    # np_2d = npx*npy
-
-    # x_field, y_field = np.meshgrid(x, y)
-    # x_field_1d = np.reshape(x_field, (1, np_2d))
-    # y_field_1d = np.reshape(y_field, (1, np_2d))
 
     num_particles = particle_list.shape[1]
 
@@ -125,7 +115,7 @@ def initial_conditions(particle_list, T_0y, T_1y, T_x0, T_x1, T_xy):
     idy_0 = np.where(particle_list[1, :, None] == 0.0)[0]
     idy_1 = np.where(particle_list[1, :, None] == 1.0)[0]
 
-    T_field = np.full((1, num_particles), T_xy)
+    T_field = np.full((1, num_particles), T_xy, dtype='float64')
     T_field[:, idy_0] = T_x0  # Ts
     T_field[:, idx_0] = T_0y
     T_field[:, idx_1] = T_1y
@@ -135,7 +125,7 @@ def initial_conditions(particle_list, T_0y, T_1y, T_x0, T_x1, T_xy):
 
 
 def analytical_solution(particle_list, Ts):
-    num_series_iter = 21
+    num_series_iter = 91
     num_particles = particle_list.shape[1]
     N = num_particles
     T_exact = np.zeros((1, num_particles))
@@ -146,7 +136,7 @@ def analytical_solution(particle_list, Ts):
             AN = ((2*Ts)/(N*math.pi))*(((-1)**N - 1)/(np.sinh(N*math.pi)))
             delta_T[0, i] = AN*np.sin(N*math.pi*particle_list[0, i])\
                 * np.sinh(N*math.pi*(particle_list[1, i] - 1))
-            np.add(T_exact, delta_T, out=T_exact, casting="unsafe")
+            T_exact += delta_T
 
     return T_exact
 
@@ -155,17 +145,21 @@ def numerical_error(T_numerical, T_analytical):
     return np.abs(T_analytical - T_numerical)
 
 
-def plot_field(points, field):
-    plt.figure()
-    plt.scatter(points[0, :], points[1, :], c=field)
-    plt.colorbar()
-    # plt.show()
+def postprocessing_fields(points, field):
+    points_x = np.unique(points[0, :])
+    points_y = np.unique(points[1, :])
+    num_x = len(points_x)
+    num_y = len(points_y)
+    field_xy = np.reshape(field, (num_x, num_y))
+    return points_x, points_y, field_xy
 
 
 def main():
+    start = time.time()
+
     print('Preprocessing')
-    num_particles_x = 20
-    num_particles_y = 20
+    num_particles_x = 25
+    num_particles_y = 25
     # num_particles = num_particles_x*num_particles_y
 
     Lx = 1.0
@@ -174,22 +168,22 @@ def main():
     dx = Lx/num_particles_x
     dy = Ly/num_particles_y
 
-    K = 1
-    rho = 1
-    cv = 1
+    K = 1.0
+    rho = 1.0
+    cv = 1.0
 
-    Ts = 100
+    Ts = 100.0
 
     T_x0 = Ts
 
-    T_0y = 0
-    T_1y = 0
+    T_0y = 0.0
+    T_1y = 0.0
 
-    T_x1 = 0
-    T_xy = 0
+    T_x1 = 0.0
+    T_xy = 0.0
 
-    dt = 5e-2
-    t_final = 1
+    dt = 5.0e-3
+    t_final = 1.0
     time_steps = np.arange(0, t_final, step=dt)
     num_steps = len(time_steps)
 
@@ -208,13 +202,18 @@ def main():
     T_field = T_initial.copy()
 
     print('Solver')
-    laplacian = np.zeros((1, num_particles))
+    laplacian = np.zeros((1, num_particles), dtype='float')
 
+    delta = 1e5
+    tol = 1e-4
+    current_time = 0.0
     for i_time in range(0, num_steps):
-        print("Time iteration #{:d}".format(i_time+1))
+    # while delta > tol:
+        print("Time: {:.4f} s".format(current_time))
         for i in range(0, num_domain_particles):
             # print("Particle #{:d}".format(i+1))
             i_dom = i + num_boundary_particles
+            # print("Particle #{:d}".format(i_dom+1))
             X_i = particle_list[:, i_dom]
             T_i = T_field[:, i_dom]
             laplacian[0, i_dom] = discretized_laplacian(K, rho, cv, dx, dy,
@@ -222,35 +221,29 @@ def main():
                                                         particle_densities,
                                                         particle_list, T_field,
                                                         X_i, T_i)
-        np.add(T_field, laplacian*dt, out=T_field, casting="unsafe")
-        # print(laplacian.T)
-        # plt.figure()
-        # plt.scatter(particle_list[0, :], particle_list[1, :], c=T_field)
-        # plt.colorbar()
+        max_delta_field = np.max(laplacian*dt)
+        print("Maximum delta field: {:.5f}".format(max_delta_field))
+        T_field += laplacian*dt
+        delta = max_delta_field
+        current_time += dt
 
     print('Postprocessing')
-    print(T_field)
 
     T_exact = analytical_solution(particle_list, Ts)
-    # print(T_exact)
 
-    interpolation_error = numerical_error(T_field, T_exact)
+    absolute_error = numerical_error(T_field, T_exact)
     print('Maximum temperature difference: {:.3f} °C'
-          .format(np.max(interpolation_error)))
+          .format(np.max(absolute_error)))
 
-    plot_field(particle_list, T_exact)
-    plot_field(particle_list, T_field)
-    plot_field(particle_list, interpolation_error)
+    end = time.time()
 
-    print("Remember using one `plt.show' line")
+    print("Execution time: {:.2f} s".format(end-start))
 
-    # plt.figure()
-    # plt.scatter(particle_list[0, :], particle_list[1, :], c=T_exact)
-    # plt.colorbar()
-    # plt.figure()
-    # plt.scatter(particle_list[0, :], particle_list[1, :], c=T_field)
-    # plt.colorbar()
-    plt.show()
+    field_plot = Plotter('x', 'y')
+    field_plot.plot_scatter('Exact temperature field. T_e', particle_list, T_exact)
+    field_plot.plot_scatter('SPH temperature field. T_SPH', particle_list, T_field)
+    field_plot.plot_scatter('Absolute numerical error', particle_list, absolute_error)
+    field_plot.show_plots(True)
 
 
 if __name__ == "__main__":
