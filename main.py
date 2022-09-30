@@ -1,8 +1,9 @@
 import math
 import numpy as np
 import kernel as kn
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from plotter import Plotter
+from particles import Particles
 import time
 
 
@@ -124,6 +125,54 @@ def initial_conditions(particle_list, T_0y, T_1y, T_x0, T_x1, T_xy):
     return T_field
 
 
+def sph_solver(field_particles, time_info, T_initial, K, rho, cv):
+
+    particle_list = field_particles.get_particle_list()
+    particle_densities = field_particles.get_particle_densities()
+    particle_masses = field_particles.get_particle_masses()
+
+    dx = field_particles.get_dx()
+    dy = field_particles.get_dy()
+
+    num_particles = field_particles.get_num_particles()
+    num_domain_particles = field_particles.get_num_domain_particles()
+    num_boundary_particles = field_particles.get_num_boundary_particles()
+
+    dt = time_info[0]
+    t_final = time_info[1]
+    time_steps = np.arange(0, t_final, step=dt)
+    num_steps = len(time_steps)
+
+    T_field = T_initial.copy()
+
+    laplacian = np.zeros((1, num_particles), dtype='float')
+
+    delta = 1e5
+    tol = 1e-4
+    current_time = 0.0
+    for i_time in range(0, num_steps):
+    # while delta > tol:
+        print("Time: {:.4f} s".format(current_time))
+        for i in range(0, num_domain_particles):
+            # print("Particle #{:d}".format(i+1))
+            i_dom = i + num_boundary_particles
+            # print("Particle #{:d}".format(i_dom+1))
+            X_i = particle_list[:, i_dom]
+            T_i = T_field[:, i_dom]
+            laplacian[0, i_dom] = discretized_laplacian(K, rho, cv, dx, dy,
+                                                        particle_masses,
+                                                        particle_densities,
+                                                        particle_list, T_field,
+                                                        X_i, T_i)
+        max_delta_field = np.max(laplacian*dt)
+        print("Maximum delta field: {:.5f}".format(max_delta_field))
+        T_field += laplacian*dt
+        delta = max_delta_field
+        current_time += dt
+
+    return T_field
+
+
 def analytical_solution(particle_list, Ts):
     num_series_iter = 91
     num_particles = particle_list.shape[1]
@@ -158,15 +207,14 @@ def main():
     start = time.time()
 
     print('Preprocessing')
-    num_particles_x = 25
-    num_particles_y = 25
-    # num_particles = num_particles_x*num_particles_y
-
     Lx = 1.0
     Ly = 1.0
+    num_particles_side = 20
+    field_particles = Particles(Lx, Ly, num_particles_side)
+    field_particles.create_particles()
+    field_particles.compute_masses()
 
-    dx = Lx/num_particles_x
-    dy = Ly/num_particles_y
+    # num_particles_y = 25
 
     K = 1.0
     rho = 1.0
@@ -182,55 +230,19 @@ def main():
     T_x1 = 0.0
     T_xy = 0.0
 
-    dt = 5.0e-3
+    dt = 1.0e-2
     t_final = 1.0
-    time_steps = np.arange(0, t_final, step=dt)
-    num_steps = len(time_steps)
+    time_info = [dt, t_final]
 
-    domain_particle_list = domain_particle_creation(Lx, Ly, num_particles_x, num_particles_y)
-    boundary_particle_list = boundary_particle_creation(Lx, Ly, num_particles_x, num_particles_y)
-    particle_list = np.hstack((boundary_particle_list, domain_particle_list))
-
-    num_particles = particle_list.shape[1]
-    num_domain_particles = domain_particle_list.shape[1]
-    num_boundary_particles = boundary_particle_list.shape[1]
-    particle_densities = np.ones((1, num_particles))
-    particle_masses = dx*dy*particle_densities
+    particle_list = field_particles.get_particle_list()
     T_initial = initial_conditions(particle_list,
                                    T_0y, T_1y, T_x0, T_x1, T_xy)
 
-    T_field = T_initial.copy()
-
     print('Solver')
-    laplacian = np.zeros((1, num_particles), dtype='float')
-
-    delta = 1e5
-    tol = 1e-4
-    current_time = 0.0
-    for i_time in range(0, num_steps):
-    # while delta > tol:
-        print("Time: {:.4f} s".format(current_time))
-        for i in range(0, num_domain_particles):
-            # print("Particle #{:d}".format(i+1))
-            i_dom = i + num_boundary_particles
-            # print("Particle #{:d}".format(i_dom+1))
-            X_i = particle_list[:, i_dom]
-            T_i = T_field[:, i_dom]
-            laplacian[0, i_dom] = discretized_laplacian(K, rho, cv, dx, dy,
-                                                        particle_masses,
-                                                        particle_densities,
-                                                        particle_list, T_field,
-                                                        X_i, T_i)
-        max_delta_field = np.max(laplacian*dt)
-        print("Maximum delta field: {:.5f}".format(max_delta_field))
-        T_field += laplacian*dt
-        delta = max_delta_field
-        current_time += dt
+    T_field = sph_solver(field_particles, time_info, T_initial, K, rho, cv)
 
     print('Postprocessing')
-
     T_exact = analytical_solution(particle_list, Ts)
-
     absolute_error = numerical_error(T_field, T_exact)
     print('Maximum temperature difference: {:.3f} °C'
           .format(np.max(absolute_error)))
