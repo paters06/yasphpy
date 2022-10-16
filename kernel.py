@@ -16,29 +16,33 @@ def cubic_spline_kernel(x: np.ndarray, x_prime: np.ndarray, h: float) -> float:
 
         - h (`float'): kernel function radius
     """
-    q = np.linalg.norm(x - x_prime)/h
+    # q = np.linalg.norm(x - x_prime)/h
+    q = math.sqrt((x[0] - x_prime[0])**2 + (x[1] - x_prime[1])**2)
     alpha_D = 15/(7*math.pi*h**2)
 
     if q >= 0.0 and q <= 1.0:
-        return alpha_D*((2/3) - q**2 + 0.5*q**3)
+        return alpha_D*((2.0/3) - q**2 + 0.5*q**3)
     elif q > 1.0 and q <= 2.0:
-        return alpha_D*((1/6)*(2 - q)**3)
+        return alpha_D*((1.0/6)*(2. - q)**3)
     else:
         return 0
 
 
-def cubic_spline_kernel_derivative(x: np.ndarray, x_prime: np.ndarray,
-                                   h: float):
-    q = np.linalg.norm(x - x_prime)/h
+def cubic_spline_kernel_derivative(r_ij: float,
+                                   h: float) -> float:
+    if abs(r_ij) > 1e-5:
+        q = r_ij/h
 
-    alpha_D = 15/(7*math.pi*h**2)
+        alpha_D = 15/(7*math.pi*h**2)
 
-    if q >= 0.0 and q <= 1.0:
-        return alpha_D*(-2*q + 1.5*q**2)*(1.0/(q*h))
-    elif q > 1.0 and q <= 2.0:
-        return alpha_D*(1.0/2)*(-(2 - q)**2)*(1.0/(q*h))
+        if q >= 0.0 and q <= 1.0:
+            return alpha_D*(-2*q + 1.5*q**2)*(1.0/(q*h))
+        elif q > 1.0 and q <= 2.0:
+            return alpha_D*(1.0/2)*(-(2 - q)**2)*(1.0/(q*h))
+        else:
+            return 0.0
     else:
-        return 0
+        return 0.0
 
 
 def lucy_quartic_kernel(x: np.ndarray, x_prime: np.ndarray, h: float) -> float:
