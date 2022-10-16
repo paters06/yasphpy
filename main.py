@@ -6,6 +6,8 @@ from plotter import Plotter
 from particles import Particles
 import time
 
+import neighbour
+
 
 def domain_particle_creation(lx, ly, npx, npy):
     x = np.linspace(0, lx, npx)
@@ -51,25 +53,28 @@ def boundary_particle_creation(lx, ly, npx, npy):
     return boundary_particles
 
 
-def neighbor_list(X_i, particle_list, influence_radius):
+def neighbour_list(X_i, particle_list, influence_radius):
     neigh_idx = []
+    neigh_dist = []
     num_particle = particle_list.shape[1]
     for j in range(0, num_particle):
         X_j = particle_list[:, j]
-        d = np.linalg.norm(X_i - X_j)
+        # d = np.linalg.norm(X_i - X_j)
+        d = math.sqrt((X_i[0] - X_j[0])**2 + (X_i[1] - X_j[1])**2)
         if abs(d) > 1e-5:
             if d < influence_radius:
                 neigh_idx.append(j)
+                neigh_dist.append(d)
 
-    return neigh_idx
+    return neigh_idx, neigh_dist
 
 
 def particle_density(i, h, particle_list, m_list, influence_radius):
     rho_i = 0.0
     X_i = particle_list[:, i]
     # num_particles = particle_list.shape[1]
-    neighbor_indices = neighbor_list(X_i, particle_list, influence_radius)
-    num_neighbors = neighbor_indices.shape[0]
+    neighbor_indices = neighbour_list(X_i, particle_list, influence_radius)
+    num_neighbors = len(neighbor_indices)
 
     for j in range(0, num_neighbors):
         neigh_idx = neighbor_indices[j]
@@ -88,18 +93,37 @@ def discretized_laplacian(K, rho, cv, dx, dy, m_list, rho_list,
     k = 2.0
     h = influence_radius/k
 
-    neighbor_indices = neighbor_list(X_i, particle_list, influence_radius)
-    num_neighbors = len(neighbor_indices)
+    m = particle_list.shape[1]
+    n = particle_list.shape[0]
+    p = len(X_i)
+
+    # neighbor_indices, neighbour_distances = neighbour_list(X_i, particle_list, influence_radius)
+    # num_neighbors = len(neighbor_indices)
+    distances, indices, num_neighbours = neighbour.find_neighbour(particle_list.T,
+                                                                  X_i,
+                                                                  influence_radius,
+                                                                  m,
+                                                                  n,
+                                                                  p)
+    
+
+    neighbour_distances = distances[0:num_neighbours]
+    neighbour_indices = indices[0:num_neighbours] - 1
+
+    # print(neighbour_indices.shape)
 
     particle = 0.0
 
-    for j in range(1, num_neighbors):
-        neigh_idx = neighbor_indices[j]
+    for j in range(1, num_neighbours):
+        neigh_idx = neighbour_indices[j]
+        # print(neighbour_distances[j])
         X_j = particle_list[:, neigh_idx]
-        r_ij = np.linalg.norm(X_i - X_j)
+        # r_ij = np.linalg.norm(X_i - X_j)
+        r_ij = neighbour_distances[j]
         particle += ((m_list[:, neigh_idx]/rho_list[:, neigh_idx])
                      * (T_i - T_field[:, neigh_idx])
-                     * kn.cubic_spline_kernel_derivative(X_i, X_j, h))
+                     * kn.cubic_spline_kernel_derivative(r_ij, h))
+                    #  * kn.cubic_spline_kernel_derivative(X_i, X_j, h))
 
     laplace_i = 2.0*alpha_i*particle
 
@@ -255,8 +279,17 @@ def main():
     field_plot.plot_scatter('Exact temperature field. T_e', particle_list, T_exact)
     field_plot.plot_scatter('SPH temperature field. T_SPH', particle_list, T_field)
     field_plot.plot_scatter('Absolute numerical error', particle_list, absolute_error)
-    field_plot.show_plots(True)
+    field_plot.show_plots(False)
 
 
 if __name__ == "__main__":
+    # main()
+    import cProfile
+    import pstats
+    profiler = cProfile.Profile()
+    profiler.enable()
     main()
+    profiler.disable()
+    # stats = pstats.Stats(profiler).sort_stats('ncalls')
+    stats = pstats.Stats(profiler).sort_stats('tottime')
+    stats.print_stats()

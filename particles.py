@@ -2,8 +2,6 @@ import numpy as np
 
 
 class Particles:
-    def __init__(self) -> None:
-        pass
 
     def __init__(self, Lx, Ly, np_side, rho=1.0):
         """
