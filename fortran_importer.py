@@ -1,15 +1,15 @@
 from numpy import f2py
 
-with open("find_neighbour.f90") as sourcefile:
+with open("cubic_kernel.f90") as sourcefile:
     sourcecode = sourcefile.read()
 
-f2py.compile(sourcecode, modulename='neighbour',
+f2py.compile(sourcecode, modulename='kernel_function',
              extension='.f90', verbose=False)
 
 
-import neighbour
+import kernel_function
 
-print(neighbour.find_neighbour.__doc__)
+print(kernel_function.cubic_kernel_derivative.__doc__)
 
 # import ball
 
