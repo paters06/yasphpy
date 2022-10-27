@@ -1,3 +1,5 @@
 __pycache__/kernel.cpython-310.pyc
 __pycache__/kernel.cpython-39.pyc
 __pycache__/plotter.cpython-310.pyc
+.vscode/settings.json
+.gitignore
