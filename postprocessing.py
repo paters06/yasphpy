@@ -18,13 +18,16 @@ def analytical_solution(particle_list, Ts):
 
     return T_exact
 
-def numerical_error(T_numerical: np.ndarray, T_analytical: np.ndarray) -> np.ndarray:
+
+def numerical_error(T_numerical: np.ndarray,
+                    T_analytical: np.ndarray) -> np.ndarray:
     num_cols = T_numerical.shape[1]
     if num_cols == 1:
         return np.abs(T_analytical - T_numerical)
     else:
         max_col = num_cols - 1
         return np.abs(T_analytical - T_numerical[:, max_col])
+
 
 def postprocessing_fields(points, field):
     points_x = np.unique(points[:, 0])

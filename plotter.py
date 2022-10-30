@@ -1,4 +1,4 @@
-from matplotlib import artist, pyplot as plt
+from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 
@@ -102,10 +102,6 @@ class Plotter:
             ims.append([im])
 
         ani = animation.ArtistAnimation(fig, ims, blit=True)
-
-        print(len(ims))
-
-        filename = "movie4.mp4"
 
         writer = animation.FFMpegWriter(fps=120, metadata=dict(artist='Me'),
                                         bitrate=1800)
