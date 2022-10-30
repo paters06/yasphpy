@@ -1,32 +1,14 @@
+import logging
 import numpy as np
 import neighbour
 import kernel_function
+from customized_logger import CustomizedLogger
 from discrete_laplacian import discrete_laplacian
 
 
-def discretized_laplacian(alpha_i, h, m_list, rho_list,
-                          indices, distances, num_neighbours,
-                          T_field, T_i):
-
-    particle = 0.0
-
-    for j in range(1, num_neighbours):
-        neigh_idx = indices[j-1]
-        r_ij = distances[j-1]
-        m_j = m_list[neigh_idx, 0]
-        rho_j = rho_list[neigh_idx, 0]
-        T_j = T_field[neigh_idx, 0]
-        particle += ((m_j/rho_j) * (T_i - T_j)
-                     * kernel_function.cubic_kernel_derivative(r_ij, h))
-
-    laplace_i = 2.0*alpha_i*particle
-
-    return laplace_i
-
-
-def sph_solver(field_particles, time_info: list, T_initial: np.ndarray,
-               K: float, rho: float, cv: float, delta_stop: float,
-               steady_result):
+def time_integrator(field_particles, time_info: list, T_initial: np.ndarray,
+                    K: float, rho: float, cv: float, delta_stop: float,
+                    steady_result, custom_logger):
     """
     Parameters
     ---------------
@@ -43,12 +25,16 @@ def sph_solver(field_particles, time_info: list, T_initial: np.ndarray,
         delta_stop: (float) tolerance for stopping the simulation
         steady_result: (bool) If `True`, the function returns only the \
             steady state result. Otherwise, it returns the transient matrix
+        custom_logger: (CustomizedLogger) A custom logging object used to\
+            print information to the console and to a given file
 
     Returns
     ---------------
         T_field: (np.ndarray) Numerical solution at the end of the \
             temporal integration
     """
+
+    custom_logger.debug('Entering the time integration function')
 
     particle_list = field_particles.get_particle_list()
     particle_densities = field_particles.get_particle_densities()
@@ -81,8 +67,6 @@ def sph_solver(field_particles, time_info: list, T_initial: np.ndarray,
     current_time = 0.0
     # for i_time in range(0, num_steps):
     while delta > delta_stop:
-        print("Time: {:.4f} s".format(current_time))
-
         alpha_i = K/(rho*cv)
 
         influence_radius = 2.5*dx
@@ -111,14 +95,18 @@ def sph_solver(field_particles, time_info: list, T_initial: np.ndarray,
                                                      num_particles)
 
         max_delta_field = np.max(laplacian*dt)
-        print("Maximum delta field: {:.5f}".format(max_delta_field))
+
+        custom_logger.debug('Time: {:.4f} s'.format(current_time))
+        custom_logger.debug('Maximum delta field: {:.5f}'
+                            .format(max_delta_field))
+
         T_field += laplacian*dt
         T_transient[:, None, i_time] = T_field
         delta = max_delta_field
         current_time += dt
         i_time += 1
 
-    print(i_time)
+    custom_logger.debug('Leaving the time integration function')
 
     if steady_result:
         return T_field
