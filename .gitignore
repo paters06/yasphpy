@@ -3,3 +3,16 @@ __pycache__/kernel.cpython-39.pyc
 __pycache__/plotter.cpython-310.pyc
 .vscode/settings.json
 .gitignore
+sph_simulation.log
+__pycache__/customized_logger.cpython-310.pyc
+__pycache__/heat_conduction.cpython-310.pyc
+__pycache__/numerical_field.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/postprocessing.cpython-310.pyc
+__pycache__/profiling_script.cpython-310.pyc
+__pycache__/sph_solver.cpython-310.pyc
+__pycache__/time_integration.cpython-310.pyc
+__pycache__/timer.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc

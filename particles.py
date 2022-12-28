@@ -8,6 +8,7 @@ class Particles:
         Class constructor
 
         Input:
+        -----------
             - Lx: length in x direction
             - Ly: length in y direction
             - np_side: number of particle per side
@@ -20,11 +21,15 @@ class Particles:
         self.dy = Ly/np_side
         self.rho = rho
 
+        self.create_particles()
+        self.compute_masses()
+
     def create_particles(self) -> None:
         self._create_domain_particles()
         self._create_boundary_particles()
         self.particle_list = np.vstack((self.boundary_particles,
                                         self.domain_particles))
+        self.particle_velocities = np.zeros_like(self.particle_list)
 
     def compute_masses(self) -> None:
         num_particles = self.particle_list.shape[0]
@@ -50,10 +55,15 @@ class Particles:
         self.domain_particles = np.hstack((x_field_1d, y_field_1d))
 
     def _create_boundary_particles(self) -> None:
-        x = np.linspace(0.0, self.Lx, 2*self.np_side)
-        y = np.linspace(0.0, self.Ly, 2*self.np_side)
+        """
+        Note: For the case of virtual particles,
+        the code used twice the number of particles
+        on each side of the geometry
+        """
+        x = np.linspace(0.0, self.Lx, self.np_side)
+        y = np.linspace(0.0, self.Ly, self.np_side)
 
-        np_2d = 4*(self.np_side)*(self.np_side)
+        np_2d = (self.np_side)*(self.np_side)
 
         x_field, y_field = np.meshgrid(x, y)
         x_field_1d = np.reshape(x_field, (np_2d, 1))
@@ -90,6 +100,9 @@ class Particles:
 
     def get_num_boundary_particles(self):
         return self.boundary_particles.shape[0]
+
+    def get_particle_velocities(self):
+        return self.particle_velocities
 
     def get_particle_densities(self):
         return self.particle_densities
