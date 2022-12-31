@@ -4,11 +4,15 @@
 python module discrete_laplacian ! in 
     interface  ! in :discrete_laplacian
         module kernel_functions ! in :discrete_laplacian:kernel_functions.f90
-            subroutine cubic_kernel_derivative(r_ij,h,deriv) ! in :discrete_laplacian:kernel_functions.f90:kernel_functions
+            subroutine cubic_kernel(r_ij,h,dx,dy,w,dwdq,grad) ! in :discrete_laplacian:kernel_functions.f90:kernel_functions
                 real intent(in) :: r_ij
                 real intent(in) :: h
-                real intent(out) :: deriv
-            end subroutine cubic_kernel_derivative
+                real intent(in) :: dx
+                real intent(in) :: dy
+                real intent(out) :: w
+                real intent(out) :: dwdq
+                real dimension(2),intent(out) :: grad
+            end subroutine cubic_kernel
         end module kernel_functions
         subroutine discrete_laplacian(alpha_i,h,num_particles,m_list,rho_list,indices,distances,num_neighbours,t_field,t_i,laplace_i) ! in :discrete_laplacian:discrete_laplacian.f90
             use kernel_functions

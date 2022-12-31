@@ -1,7 +1,7 @@
 subroutine discrete_laplacian(alpha_i, h, num_particles, m_list, rho_list, &
                               indices, distances, num_neighbours, T_field, T_i, &
                               laplace_i)
-    use kernel_functions
+    use smoothing_functions
     implicit none
     real, intent(in) :: alpha_i
     real, intent(in) :: h

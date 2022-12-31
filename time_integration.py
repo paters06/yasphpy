@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 import neighbour
-import kernel_function
 from customized_logger import CustomizedLogger
 from discrete_laplacian import discrete_laplacian
 

@@ -1,0 +1,22 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module kernel_functions ! in 
+    interface  ! in :kernel_functions
+        module smoothing_functions ! in :kernel_functions:kernel_functions.f90
+            subroutine cubic_kernel(r_ij,h,dx,dy,w,dwdq,grad) ! in :kernel_functions:kernel_functions.f90:smoothing_functions
+                real intent(in) :: r_ij
+                real intent(in) :: h
+                real intent(in) :: dx
+                real intent(in) :: dy
+                real intent(out) :: w
+                real intent(out) :: dwdq
+                real dimension(2),intent(out) :: grad
+            end subroutine cubic_kernel
+        end module smoothing_functions
+    end interface 
+end python module kernel_functions
+
+! This file was auto-generated with f2py (version:1.23.4).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e
