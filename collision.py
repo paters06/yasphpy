@@ -71,8 +71,6 @@ class Collision:
     def move_point(self, tf):
         ti = self.dt
         Co = self.pt.get_coordinates().copy()
-        # print(Co)
-        # self.point_path.append([ti, Co])
         while ti <= tf:
             # self._print_time(ti)
             Co = self.pt.get_coordinates().copy()
@@ -84,22 +82,17 @@ class Collision:
             vo = self.pt.get_velocities().copy()
 
             vf = vo
-            # print('Before collision')
-            # print(vo)
 
+            # print(Cf)
+            # print(vf)
             does_collide, d_list, collision_side, CI = self.detect_collision(Co, Cf)
-            # Cf, vf = self.correct_position(Cf, vf, d_list, collision_side)
-            # does_collide, d_list, collision_side = self.detect_collision(Co, Cf)
-            # Cf, vf = self.correct_position(Cf, vf, d_list, collision_side)
-            # does_collide, d_list, collision_side = self.detect_collision(Co, Cf)
-            # Cf = self.correct_position(Cf, d_list, collision_side)
+            print(CI, Cf)
 
             while does_collide:
                 Cf, vf = self.correct_position(Cf, vf, d_list, collision_side)
+                print(CI, Cf)
+                # print(vf)
                 does_collide, d_list, collision_side, CI = self.detect_collision(CI, Cf)
-
-            # print('After collision')
-            # print(vf)
 
             self.point_path.append([ti, Cf.copy(), vf.copy()])
             self.pt.set_coordinates(Cf)
@@ -131,7 +124,7 @@ class Collision:
             t_vec = (C1 - Co)
 
         d_min = min((d_top, d_down, d_left, d_right))  # type: ignore
-        # print(d_min)
+        print(d_min)
 
         collision_side = []
         d_list = []
@@ -143,7 +136,6 @@ class Collision:
 
         if d_min < self.tol:
             if (d_top * d_down) < self.tol:
-                # print('Vertical')
                 if d_top < self.tol:
                     collision_side.append('top')
                     d_list.append(d_top)
@@ -158,7 +150,6 @@ class Collision:
                     n_vec = self.n_down
 
             if (d_left * d_right) < self.tol:
-                # print('Horizontal')
                 if d_right < self.tol:
                     collision_side.append('right')
                     d_list.append(d_right)
@@ -176,8 +167,6 @@ class Collision:
             PI = Po + s_parameter*t_vec
             CI = Co + s_parameter*t_vec
 
-        # print(d_min)
-        # print(self.tol)
         if d_min < self.tol:
             # print('Collision!!!')
             does_collide = True
@@ -187,67 +176,47 @@ class Collision:
         return does_collide, d_list, collision_side, CI
 
     def correct_position(self, CI, vo, d_list, collision_side):
-        # print('Before correction')
-        # print(CI)
-        # print(vo)
-        # print(collision_side)
-        # vf = np.zeros((2,))
         Cf = CI.copy()
         vf = vo.copy()
         if len(collision_side) == 2:
+            k_col = 0
             for i in range(0, 2):
                 if collision_side[i] == 'right':
                     M_vec = self.n_right
                     k_col = 0
                 elif collision_side[i] == 'left':
-                    # self.pt.velocity[0] = -self.CR*self.pt.velocity[0]
                     M_vec = self.n_left
                     k_col = 0
                 elif collision_side[i] == 'top':
-                    # self.pt.velocity[1] = -self.CR*self.pt.velocity[1]
                     M_vec = self.n_top
                     k_col = 1
                 elif collision_side[i] == 'down':
-                    # self.pt.velocity[1] = -self.CR*self.pt.velocity[1]
                     M_vec = self.n_down
                     k_col = 1
                 else:
                     M_vec = np.zeros((2,))
-                # self.pt.velocity[i] = -self.CR*self.pt.velocity[i]
                 vf[k_col] = -self.CR*vo[k_col]
+                print('d_list', d_list[i])
                 Cf = Cf + (1.0 + self.CR)*(self.pt.radius - d_list[i])*M_vec
-            # print(Cf)
         elif len(collision_side) == 1:
             if collision_side[0] == 'right':
-                # self.pt.velocity[0] = -self.CR*self.pt.velocity[0]
                 vf[0] = -self.CR*vo[0]
                 M_vec = self.n_right
             elif collision_side[0] == 'left':
-                # self.pt.velocity[0] = -self.CR*self.pt.velocity[0]
                 vf[0] = -self.CR*vo[0]
                 M_vec = self.n_left
             elif collision_side[0] == 'top':
-                # self.pt.velocity[1] = -self.CR*self.pt.velocity[1]
                 vf[1] = -self.CR*vo[1]
                 M_vec = self.n_top
             elif collision_side[0] == 'down':
-                # self.pt.velocity[1] = -self.CR*self.pt.velocity[1]
                 vf[1] = -self.CR*vo[1]
                 M_vec = self.n_down
             else:
                 M_vec = np.zeros((2,))
 
-            # print(Cf)
-            # print(M_vec)
-            # print((1.0 + self.CR)*(self.pt.radius - d_min)*M_vec)
             Cf = CI + (1.0 + self.CR)*(self.pt.radius - d_list[0])*M_vec
-            # print(collision_side)
-            # print(Cf)
         else:
             Cf = CI
-        # print('After correction')
-        # print(Cf)
-        # print(vf)
         return Cf, vf
 
     def _print_box_dimensions(self):
@@ -353,7 +322,7 @@ def test_10():
 
 
 def main():
-    test_03()
+    test_01()
 
 
 if __name__ == '__main__':
