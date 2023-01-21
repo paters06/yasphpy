@@ -23,7 +23,7 @@ subroutine discrete_laplacian(alpha_i, h, num_particles, m_list, rho_list, &
 
     neighbour_loop: do j = 1, num_neighbours
         neigh_idx = indices(j)
-        call cubic_kernel_derivative(distances(j), h, deriv)
+        call cubic_kernel(distances(j), h, deriv)
         particle_laplace = particle_laplace + &
             ( (m_list(neigh_idx)/rho_list(neigh_idx))*(T_i - T_field(neigh_idx))*deriv)
     end do neighbour_loop

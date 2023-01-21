@@ -16,3 +16,10 @@ __pycache__/sph_solver.cpython-310.pyc
 __pycache__/time_integration.cpython-310.pyc
 __pycache__/timer.cpython-310.pyc
 __pycache__/particles.cpython-310.pyc
+__pycache__/fluid_hydrostatics.cpython-310.pyc
+__pycache__/incompressible_flow.cpython-310.pyc
+__pycache__/open_periodic_boundary.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/particles.cpython-310.pyc
+__pycache__/reflective_boundary.cpython-310.pyc
