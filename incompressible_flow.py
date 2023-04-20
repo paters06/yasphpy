@@ -7,7 +7,7 @@ from particles import Particles
 from plotter import Plotter
 from timer import Timer
 
-import fortran_src.neighbour
+from fortran_src.neighbour import find_neighbour
 from fortran_src.kernel_functions import smoothing_functions
 from fortran_src.pressure_gradient import pressure_gradient
 from fortran_src.mass_conservation import mass_conservation
@@ -33,43 +33,47 @@ class IncompressibleFlow:
         self.nu = nu
         self.rho = rho
         self.c = 10.0
+        self.n_dim = 2
 
         part1 = Particles(L, D, num_particles_x, num_particles_y, rho)
 
-        # self.particle_positions = part1.get_particle_list()
-        self.particle_positions = part1.get_domain_particle_list()
+        self.particle_positions = part1.get_domain_particles()
         self.particle_densities = part1.get_particle_densities()
         self.particle_masses = part1.get_particle_masses()
-        self.virtual_particles = part1.get_virtual_particles_list()
-        num_particles = part1.get_num_domain_particles()
-        self.velocity_field = np.zeros((num_particles, 2))
-        # self.pressure_field = np.zeros((num_particles, 1))
-        self.pressure_field = (self.c**2)*self.particle_densities.copy()
+        self.virtual_particles_I = part1.get_virtual_particles_I()
+        self.virtual_particles_II = part1.get_virtual_particles_II()
 
         self.num_domain_particles = part1.get_num_domain_particles()
-        self.num_boundary_particles = part1.get_num_boundary_particles()
-        self.num_particles = part1.get_num_domain_particles()
-        self.num_virtual_particles = part1.get_num_virtual_particles()
+        self.num_virtual_particles_I = part1.get_num_virtual_particles_I()
+        
 
         self.dx = part1.get_dx()
         self.dy = part1.get_dy()
 
+        self.velocity_field = np.zeros((self.num_domain_particles, 2))
+        self.pressure_field = (self.c**2)*self.particle_densities.copy()
+
         self.surface_tension_coefficient = 1.0
 
-        reflective_walls = ['left', 'right', 'up', 'down']
+        solid_walls = ['left', 'right', 'down']
 
         self.custom_logger = CustomizedLogger()
         self.custom_logger.info('Beginning the SPH simulation')
         self.timer = Timer()
 
-        self._enforce_velocity_BC()
-        # self._enforce_pressure_BC()
-        # self._plot_particles()
-        # self._plot_velocity_field()
-        self._plot_velocity_magnitude()
-        # self._plot_pressure_field()
+        self.virtual_velocity = self._enforce_velocity_BC()
+        self.virtual_densities = part1.get_virtual_densities()
+        self.virtual_masses = part1.get_virtual_masses()
+        self.virtual_pressure = (self.c**2)*self.virtual_densities.copy()
 
-        # self.solve_fluid_equations()
+        # print(self.pressure_field)
+        # print(self.virtual_pressure)
+
+        # self._enforce_pressure_BC()
+
+        self._plot_particles()
+        # self._plot_pressure_field()
+        # self._plot_initial_BC()
 
     def _calculate_velocity_profile(self, y: float):
         # ux = 4*self.v_max*(y/self.D**2)*(self.D - y)
@@ -77,30 +81,22 @@ class IncompressibleFlow:
         return ux
 
     def _enforce_velocity_BC(self):
-        num_particles = self.particle_positions.shape[0]
-        for i in range(num_particles):
-            x = self.particle_positions[i, 0]
-            y = self.particle_positions[i, 1]
-            # if abs(x - self.D) < 1e-5:
-            #     ux = self._calculate_velocity_profile(y)
-            #     self.velocity_field[i, 0] = ux
-            #     self.velocity_field[i, 1] = 0.0
-
-            # if abs(y) < 1e-5:
-            #     self.velocity_field[i, 0] = 0.0
-            #     self.velocity_field[i, 1] = 0.0
+        virtual_particles_velocity = np.zeros_like(self.virtual_particles_I)
+        for i in range(self.num_virtual_particles_I):
+            y = self.virtual_particles_I[i, 1]
 
             if abs(y - self.D) < 1e-5:
-                self.velocity_field[i, 0] = self.v_max
-                self.velocity_field[i, 1] = 0.0
+                virtual_particles_velocity[i, 0] = self.v_max
+                virtual_particles_velocity[i, 1] = 0.0
+
+        return virtual_particles_velocity
 
     def _enforce_pressure_BC(self):
         """
         Modify this function when needed
         """
-        num_particles = self.particle_positions.shape[0]
         P_inlet = 0.0
-        for i in range(num_particles):
+        for i in range(self.num_domain_particles):
             x = self.particle_positions[i, 0]
             if abs(x) < 1e-5:
                 self.pressure_field[i, 0] = 0.0
@@ -110,38 +106,6 @@ class IncompressibleFlow:
     def _calculate_equation_of_state(self):
         self.pressure_field = (self.c**2)*self.particle_densities.copy()
         # self._enforce_pressure_BC()
-
-    def calculate_pressure_gradient(self, i, distances,
-                                    indices, num_neighbours, h):
-        X_i = self.particle_positions[i, :]
-        P_i = self.pressure_field[i, 0]
-        rho_i = self.particle_densities[i, 0]
-
-        aux = np.zeros((2,))
-
-        for j in range(0, num_neighbours):
-            neigh_idx = indices[j] - 1
-            r_ij = distances[j]
-            mass_j = self.particle_masses[neigh_idx, 0]
-
-            aux1 = np.zeros((2,))
-
-            if r_ij > 1e-5:
-                X_j = self.particle_positions[neigh_idx, :]
-                P_j = self.pressure_field[neigh_idx, 0]
-                rho_j = self.particle_densities[neigh_idx, 0]
-
-                W, dWdq, grad_W = smoothing_functions.cubic_kernel(h, X_i, X_j)
-
-                aux1 = mass_j * \
-                    ((P_i/rho_i**2) + (P_j/rho_j**2))*grad_W
-
-            aux[0] += aux1[0]
-            aux[1] += aux1[1]
-
-        pressure_gradient = -aux.copy()
-
-        return pressure_gradient
 
     def calculate_density(self, i, distances, indices,
                           num_neighbours, h, dx, dy):
@@ -161,27 +125,6 @@ class IncompressibleFlow:
             rho_i += aux
 
         return rho_i
-
-    def solve_mass_conservation_eq(self, i, distances,
-                                   indices, num_neighbours, h):
-        drho_dt = 0.0
-        X_i = self.particle_positions[i, :]
-        vel_i = self.velocity_field[i, :]
-        for j in range(0, num_neighbours):
-            neigh_idx = indices[j] - 1
-            r_ij = distances[j]
-            X_j = self.particle_positions[neigh_idx, :]
-            mass_j = self.particle_masses[neigh_idx, 0]
-            vel_j = self.velocity_field[neigh_idx, :]
-
-            aux = 0.0
-            if r_ij > 1e-5:
-                W, dWdq, grad_W = smoothing_functions.cubic_kernel(h, X_i, X_j)
-                aux = -mass_j*np.dot((vel_i - vel_j), grad_W)
-
-            drho_dt += aux
-
-        return drho_dt
 
     def color_field(self, i, distances, indices, num_neighbours, h):
         X_i = self.particle_positions[i, :]
@@ -233,50 +176,17 @@ class IncompressibleFlow:
         fs_i = -self.surface_tension_coefficient*color_laplacian*(n_i/n_i_norm)
         return fs_i
 
-    def solve_momentum_conservation_eq(self, i, distances,
-                                       indices, num_neighbours,
-                                       h, pressure_gradient):
-        dv_dt = np.zeros((2,))
-        X_i = self.particle_positions[i, :]
-
-        viscous_forces = np.zeros((2,))
-
-        for j in range(0, num_neighbours):
-            neigh_idx = indices[j] - 1
-            r_ij = distances[j]
-            mass_j = self.particle_masses[neigh_idx, 0]
-            rho_j = self.particle_densities[neigh_idx, 0]
-            X_j = self.particle_positions[neigh_idx, :]
-            dist_ij = math.sqrt((X_i[0] - X_j[0])**2 + (X_i[1] - X_j[1])**2)
-
-            aux = np.zeros((2,))
-
-            W, dWdq, grad_W = smoothing_functions.cubic_kernel(h, X_i, X_j)
-            if dist_ij > 1e-5:
-                aux = 2*self.nu*(mass_j/rho_j)*((X_i - X_j)/dist_ij)*grad_W
-
-            viscous_forces += aux
-
-        # fs_i = self.compute_surface_forces(i, distances, indices,
-        #                                    num_neighbours, h, dx, dy)
-
-        dv_dt = viscous_forces
-        # dv_dt = pressure_gradient + viscous_forces + fs_i
-
-        return dv_dt
-
     def solve_fluid_equations(self):
         # num_domain_particles = particles.get_num_domain_particles()
         # num_boundary_particles = particles.get_num_boundary_particles()
 
-        num_particles = self.num_particles
-        m = self.particle_positions.shape[0]
-        n = self.particle_positions.shape[1]
-        p = n
+        m = self.num_domain_particles
+        n = self.n_dim
+        p = self.n_dim
 
-        virtual_m = self.num_virtual_particles
-        virtual_n = self.virtual_particles.shape[1]
-        virtual_p = virtual_n
+        virtual_m = self.num_virtual_particles_I
+        virtual_n = self.n_dim
+        virtual_p = self.n_dim
 
         influence_radius = 2.5*self.dx
         k = 2.0
@@ -284,7 +194,7 @@ class IncompressibleFlow:
 
         current_time = 0.0
         max_time = 1.0
-        time_step = 0.01
+        time_step = 0.001
         max_time_loop = max_time + time_step
         time_iterations = np.arange(current_time, max_time_loop, time_step)
 
@@ -296,91 +206,73 @@ class IncompressibleFlow:
         for time_i in time_iterations:
             self.custom_logger.debug('Time: {:.4f} s'.format(time_i))
             print('{:.3f} s/{:.3f} s'.format(time_i, max_time))
-            for i in range(0, self.num_domain_particles):
-                # for i in range(0, self.num_particles):
+            for i_dom in range(0, self.num_domain_particles):
                 # print('{:d}/{:d}'.format(i, self.num_domain_particles))
                 # i_dom = i + self.num_boundary_particles
-                i_dom = i
                 X_i = self.particle_positions[i_dom, :]
                 P_i = self.pressure_field[i_dom, 0]
                 rho_i = self.particle_densities[i_dom, 0]
                 vel_i = self.velocity_field[i_dom, :]
 
-                distances, indices, num_neighbours = \
-                    neighbour.find_neighbour(self.particle_positions,
-                                             X_i,
-                                             influence_radius,
-                                             m, n, p)
+                domain_distances, domain_indices, num_domain_neighbours = \
+                    find_neighbour(self.particle_positions,
+                                   X_i, influence_radius, m, n, p)
 
                 virtual_distances, virtual_indices, num_virtual_neighbours = \
-                    neighbour.find_neighbour(self.virtual_particles,
-                                             X_i,
-                                             influence_radius,
-                                             virtual_m, virtual_n, virtual_p)
+                    find_neighbour(self.virtual_particles_I, X_i,
+                                   influence_radius,
+                                   virtual_m, virtual_n, virtual_p)
 
-                # print(self.particle_positions.shape)
-                # print(num_particles)
-                grad_P = pressure_gradient(h, X_i, P_i, rho_i, num_neighbours,
-                                           indices, distances,
-                                           self.particle_positions,
-                                           self.particle_masses,
-                                           self.particle_densities,
-                                           self.pressure_field,
-                                           num_particles)
-
-                drho_dt = mass_conservation(h, X_i, vel_i, num_neighbours,
-                                            indices, distances,
+                drho_dt = mass_conservation(h, X_i, vel_i,
+                                            num_domain_neighbours,
+                                            domain_indices, domain_distances,
+                                            num_virtual_neighbours,
+                                            virtual_indices, virtual_distances,
                                             self.particle_masses,
                                             self.particle_positions,
-                                            self.velocity_field, num_particles)
+                                            self.velocity_field,
+                                            self.virtual_masses,
+                                            self.virtual_particles_I,
+                                            self.virtual_velocity,
+                                            self.num_domain_particles,
+                                            self.num_virtual_particles_I)
 
-                dv_dt = momentum_conservation(h, X_i, self.nu, num_neighbours,
-                                              indices, distances,
+                dv_dt = momentum_conservation(h, X_i, P_i, rho_i, self.nu,
+                                              num_domain_neighbours,
+                                              domain_indices, domain_distances,
+                                              num_virtual_neighbours,
+                                              virtual_indices,
+                                              virtual_distances,
                                               self.particle_masses,
-                                              self.particle_densities,
                                               self.particle_positions,
-                                              num_particles)
+                                              self.particle_densities,
+                                              self.pressure_field,
+                                              self.virtual_masses,
+                                              self.virtual_particles_I,
+                                              self.virtual_densities,
+                                              self.virtual_pressure,
+                                              self.num_domain_particles,
+                                              self.num_virtual_particles_I)
 
-                F_iv = virtual_repulsion_force(influence_radius, X_i,
+                F_iv = virtual_repulsion_force(self.dx, X_i,
                                                self.v_max,
                                                num_virtual_neighbours,
                                                virtual_indices,
-                                               self.virtual_particles,
-                                               self.num_virtual_particles)
+                                               self.virtual_particles_I,
+                                               self.num_virtual_particles_I)
 
-                # grad_P = self.calculate_pressure_gradient(i,
-                #                                           distances,
-                #                                           indices,
-                #                                           num_neighbours,
-                #                                           h)
+                # print(F_iv)
+                dv_dt += F_iv
 
-                # drho_dt = self.solve_mass_conservation_eq(i,
-                #                                           distances,
-                #                                           indices,
-                #                                           num_neighbours,
-                #                                           h)
-
-                # dv_dt = self.solve_momentum_conservation_eq(i,
-                #                                             distances,
-                #                                             indices,
-                #                                             num_neighbours,
-                #                                             h, grad_P)
-
-                # print(drho_dt.shape)
                 self.particle_densities[i_dom, :] += (drho_dt*time_step)
                 self.velocity_field[i_dom, :] += (dv_dt*time_step)
 
-                self.compute_collision_detection(i_dom, boundary)
+                # self.compute_collision_detection(i_dom, boundary)
 
-                # self.particle_positions[i_dom, :] += (self.velocity_field[i_dom, :]*time_step)
-                # updated_pos = self.particle_positions[i_dom, :]
-                # updated_vel = self.velocity_field[i_dom, :]
-                # new_pos, new_vel = boundary.check_particle_in_domain(updated_pos, updated_vel)
-                # self.particle_positions[i_dom, :] = new_pos.copy()
-                # self.velocity_field[i_dom, :] = new_vel.copy()
-            # self._enforce_velocity_BC()
-            # print(np.max(self.particle_positions[:, 1]))
             self._calculate_equation_of_state()
+
+        # print(self.particle_densities)
+        # self._plot_initial_BC()
         # self._plot_density_field()
         # self._plot_pressure_field()
         # self._plot_velocity_field()
@@ -401,7 +293,24 @@ class IncompressibleFlow:
         field_plot = Plotter('x', 'y')
         initial_pos = field_plot.plot_points('Particles',
                                              self.particle_positions,
-                                             self.virtual_particles)
+                                             self.virtual_particles_I,
+                                             self.virtual_particles_II)
+        field_plot.show_plots(True)
+
+    def _plot_initial_BC(self):
+        vec_field = self.velocity_field
+        vvec_field = self.virtual_velocity
+        mag_field = np.sqrt(vec_field[:, 0]**2 + vec_field[:, 1]**2)
+        magv_field = np.sqrt(vvec_field[:, 0]**2 + vvec_field[:, 1]**2)
+        field_plot = Plotter('x', 'y')
+        vel_fig = field_plot.plot_scalar_field('Initial velocity field',
+                                               'Velocity (m/s)',
+                                               self.particle_positions,
+                                               mag_field)
+        # vvel_fig = field_plot.plot_scalar_field('Initial velocity field',
+        #                                         'Velocity (m/s)',
+        #                                         self.virtual_particles_I,
+        #                                         magv_field)
         field_plot.show_plots(True)
 
     def _plot_density_field(self):
@@ -416,6 +325,14 @@ class IncompressibleFlow:
     def _plot_velocity_field(self):
         field_plot = Plotter('x', 'y')
         vel_fig = field_plot.plot_vector_field('Initial velocity field',
+                                               'Velocity (m/s)',
+                                               self.particle_positions,
+                                               self.velocity_field)
+        field_plot.show_plots(True)
+
+    def _plot_streamline_field(self):
+        field_plot = Plotter('x', 'y')
+        vel_fig = field_plot.plot_stream_field('Initial velocity field',
                                                'Velocity (m/s)',
                                                self.particle_positions,
                                                self.velocity_field)

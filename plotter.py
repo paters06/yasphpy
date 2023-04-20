@@ -33,7 +33,7 @@ class Plotter:
         self.dirname = dirname
 
     def plot_points(self, title_str: str, points: np.ndarray,
-                    pt2: np.ndarray):
+                    pt1: np.ndarray, pt2: np.ndarray):
         """
         Params
         --------
@@ -50,7 +50,8 @@ class Plotter:
         ax.set_ylabel(self.ylabel_str)
         ax.set_xlim(-0.5 - x_min, x_max + 0.5)
         im = ax.plot(points[:, 0], points[:, 1], '.k', label='Domain')
-        im2 = ax.plot(pt2[:, 0], pt2[:, 1], '.b', label='Virtual')
+        im1 = ax.plot(pt1[:, 0], pt1[:, 1], '.b', label='Virtual I')
+        im2 = ax.plot(pt2[:, 0], pt2[:, 1], '.r', label='Virtual II')
         ax.legend(loc='right')
         ax.set_aspect('equal')
         return fig
@@ -70,6 +71,20 @@ class Plotter:
         ax.set_xlabel(self.xlabel_str)
         ax.set_ylabel(self.ylabel_str)
         im = ax.scatter(points[:, 0], points[:, 1], c=field)
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label(cbar_str)
+        ax.set_aspect('equal')
+        return fig
+
+    def plot_stream_field(self, title_str: str, cbar_str: str,
+                          points: np.ndarray, vec_field: np.ndarray):
+        fig, ax = plt.subplots()
+        ax.set_title(title_str)
+        ax.set_xlabel(self.xlabel_str)
+        ax.set_ylabel(self.ylabel_str)
+        # mag_field = np.sqrt(vec_field[:, 0]**2 + vec_field[:, 1]**2)
+        im = ax.streamplot(points[:, 0], points[:, 1],
+                           vec_field[:, 0], vec_field[:, 1])
         cbar = fig.colorbar(im, ax=ax)
         cbar.set_label(cbar_str)
         ax.set_aspect('equal')

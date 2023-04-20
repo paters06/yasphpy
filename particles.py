@@ -28,17 +28,18 @@ class Particles:
 
     def create_particles(self) -> None:
         self._create_domain_particles()
-        self._create_boundary_particles()
+        self._create_virtual_particles_type_I()
         self._create_virtual_particles_type_II()
-        # self.particle_list = np.vstack((self.boundary_particles,
-        #                                 self.domain_particles))
         self.particle_list = self.domain_particles.copy()
         self.particle_velocities = np.zeros_like(self.particle_list)
+        self.virtual_velocities = np.zeros((self.num_virtual_particles_I, 2))
 
     def compute_masses(self) -> None:
         num_particles = self.particle_list.shape[0]
         self.particle_densities = self.rho*np.ones((num_particles, 1))
+        self.virtual_densities = self.rho*np.ones((self.num_virtual_particles_I, 1))
         self.particle_masses = (self.dx*self.dy)*self.particle_densities
+        self.virtual_masses = (self.dx*self.dy)*self.virtual_densities
 
     def _create_domain_particles(self) -> None:
         x = np.linspace(0.0, self.Lx, self.np_x)
@@ -58,12 +59,7 @@ class Particles:
 
         self.domain_particles = np.hstack((x_field_1d, y_field_1d))
 
-    def _create_boundary_particles(self) -> None:
-        """
-        Note: For the case of virtual particles,
-        the code used twice the number of particles
-        on each side of the geometry
-        """
+    def _create_virtual_particles_type_I(self) -> None:
         x = np.linspace(0.0, self.Lx, self.np_x)
         y = np.linspace(0.0, self.Ly, self.np_y)
 
@@ -85,42 +81,40 @@ class Particles:
         x_boundary1d = x_field_1d[id_boundary]
         y_boundary1d = y_field_1d[id_boundary]
 
-        self.boundary_particles = np.hstack((x_boundary1d, y_boundary1d))
+        self.virtual_particles_I = np.hstack((x_boundary1d, y_boundary1d))
+        self.num_virtual_particles_I = self.virtual_particles_I.shape[0]
 
     def _create_virtual_particles_type_II(self) -> None:
-        x_min = -0.1*self.Lx
-        x_max = 1.1*self.Lx
 
-        y_min = -0.1*self.Ly
-        y_max = 1.1*self.Ly
+        num_domain_particles = self.domain_particles.shape[0]
 
-        nx = self.np_x + 4
-        ny = self.np_y + 4
+        virtual_particles_II = []
+        virtual_indices = []
+        
+        for j in range(num_domain_particles):
+            x = self.domain_particles[j, 0]
+            y = self.domain_particles[j, 1]
 
-        np_2d = (nx)*(ny)
+            if abs(x) <= (2.1*self.dx):
+                virtual_pt_II_j = [-x, y]
+                virtual_particles_II.append(virtual_pt_II_j)
+            
+            if abs(x - self.Lx) < (2.1*self.dx):
+                virtual_pt_II_j = [2*self.Lx - x, y]
+                virtual_particles_II.append(virtual_pt_II_j)
+            
+            if abs(y) < (2.1*self.dy):
+                virtual_pt_II_j = [x, -y]
+                virtual_particles_II.append(virtual_pt_II_j)
+            
+            if abs(y - self.Ly) < (2.1*self.dy):
+                virtual_pt_II_j = [x, 2*self.Ly - y]
+                virtual_particles_II.append(virtual_pt_II_j)
 
-        # Bottom band
-        x = np.linspace(x_min, x_max, nx)
-        y = np.linspace(y_min, y_max, ny)
-        x_2d, y_2d = np.meshgrid(x, y)
-        x_1d = np.reshape(x_2d, (np_2d, 1))
-        y_1d = np.reshape(y_2d, (np_2d, 1))
+            # virtual_particles_II.append(virtual_pt_II_j)
 
-        idx_virtual1 = np.where(x_1d < 0.0)[0]
-        idx_virtual2 = np.where(x_1d > self.Lx)[0]
-        idx_virtual = np.union1d(idx_virtual1, idx_virtual2)
-
-        idy_virtual1 = np.where(y_1d < 0.0)[0]
-        idy_virtual2 = np.where(y_1d > self.Ly)[0]
-        idy_virtual = np.union1d(idy_virtual1, idy_virtual2)
-
-        # id_virtual = np.unique((idx_virtual, idy_virtual))
-        id_virtual = np.union1d(idx_virtual, idy_virtual)
-
-        x_virtual = x_1d[id_virtual]
-        y_virtual = y_1d[id_virtual]
-
-        self.virtual_particles = np.hstack((x_virtual, y_virtual))
+        self.virtual_particles_II = np.array(virtual_particles_II)
+        self.num_virtual_particles_II = self.virtual_particles_II.shape[0]
 
     def get_dx(self):
         return self.dx
@@ -128,26 +122,23 @@ class Particles:
     def get_dy(self):
         return self.dy
 
-    def get_particle_list(self):
-        return self.particle_list
-
-    def get_domain_particle_list(self):
+    def get_domain_particles(self):
         return self.domain_particles
 
-    def get_virtual_particles_list(self):
-        return self.virtual_particles
+    def get_virtual_particles_I(self):
+        return self.virtual_particles_I
 
-    def get_num_particles(self):
-        return self.particle_list.shape[0]
+    def get_virtual_particles_II(self):
+        return self.virtual_particles_II
 
     def get_num_domain_particles(self):
         return self.domain_particles.shape[0]
 
-    def get_num_virtual_particles(self):
-        return self.virtual_particles.shape[0]
+    def get_num_virtual_particles_I(self):
+        return self.num_virtual_particles_I
 
-    def get_num_boundary_particles(self):
-        return self.boundary_particles.shape[0]
+    def get_num_virtual_particles_II(self):
+        return self.num_virtual_particles_II
 
     def get_particle_velocities(self):
         return self.particle_velocities
@@ -157,3 +148,12 @@ class Particles:
 
     def get_particle_masses(self):
         return self.particle_masses
+
+    def get_virtual_velocities(self):
+        return self.virtual_velocities
+
+    def get_virtual_densities(self):
+        return self.virtual_densities
+
+    def get_virtual_masses(self):
+        return self.virtual_masses
