@@ -10,7 +10,7 @@ def progress_callback(current_frame: int, total_frames: int):
 
 class CloudPoint:
     def __init__(self, input_type: str,
-                 num_points: int, 
+                 num_points: int,
                  radius: float, dt: float) -> None:
         self.dt = dt
         self.num_points = num_points
@@ -39,7 +39,7 @@ class CloudPoint:
     def get_positions(self):
         return self.points_positions
 
-    def get_velocitites(self):
+    def get_velocities(self):
         return self.points_velocities
 
     def get_radii(self):
@@ -78,12 +78,12 @@ class CollisionNPoints:
 
         self.num_points = cloud_pt.get_num_points()
         self.positions = cloud_pt.get_positions().copy()
-        self.velocities = cloud_pt.get_velocitites().copy()
+        self.velocities = cloud_pt.get_velocities().copy()
         self.radii = cloud_pt.get_radii()
         self.tol = 1e-2
 
         self.initial_positions = cloud_pt.get_positions().copy()
-        self.initial_velocities = cloud_pt.get_velocitites().copy()
+        self.initial_velocities = cloud_pt.get_velocities().copy()
 
         self.time_steps = np.arange(1.0, tf + self.dt, step=self.dt)
         self.num_time_steps = len(self.time_steps)
@@ -135,11 +135,6 @@ class CollisionNPoints:
         Xo_down = np.array([Co[0], 0.0])
         Xo_left = np.array([0, Co[1]])
         Xo_right = np.array([self.Lx, Co[1]])
-
-        d_top = norm(C1 - Xo_top)
-        d_down = norm(C1 - Xo_down)
-        d_left = norm(C1 - Xo_left)
-        d_right = norm(C1 - Xo_right)
 
         d_top = np.dot(self.n_top, C1 - Xo_top)
         d_down = np.dot(self.n_down, C1 - Xo_down)
